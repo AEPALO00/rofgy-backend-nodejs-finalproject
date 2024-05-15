@@ -10,7 +10,7 @@ const SECRET_KEY = 'aepalo00^#';
 
 mongoose.set('strictQuery', false);
 
-const uri =  "mongodb://root:MjExMDUtYTAxNTcw@localhost:27017";
+const uri =  "mongodb://mongodb:27017";
 mongoose.connect(uri,{'dbName':'SocialDB'});
 
 const User = mongoose.model('User', { 
@@ -78,7 +78,7 @@ app.post("/register", async (req, res) => {
         const token = jwt.sign({ userId: newUser._id, username: newUser.username }, SECRET_KEY, { expiresIn: '1h' });
         req.session.token = token;
         //res.send({"message":`The user ${username}has been added`});
-        res.redirect("/index")
+        res.redirect(`/index?username=${newUser.username}`);
     } catch (error) {
         console.log(error);
         res.status(500).json({message:"Internal Server Error"})
@@ -94,9 +94,9 @@ app.post("/login", async (req, res) => {
 
         if (!existingUser) return res.status(400).json({ message: 'Invalid Credentials' });
 
-        const token = jwt.sign({ userId: newUser._id, username: newUser.username }, SECRET_KEY, { expiresIn: '1h' });
+        const token = jwt.sign({ userId: existingUser._id, username: existingUser.username }, SECRET_KEY, { expiresIn: '1h' });
         req.session.token = token;
-        res.send({"message":`The user ${username}has been added`});
+        res.redirect(`/index?username=${existingUser.username}`);
     } catch (error) {
         console.log(error);
         res.status(500).json({message:"Internal Server Error"})
@@ -104,11 +104,51 @@ app.post("/login", async (req, res) => {
 })
 
 // Insert your post creation code here.
+app.post("/posts", authenticateJWT, async (req, res) => {
+    const { text } = req.body;
+
+    if (!text || typeof text !== "string") return res.status(400).json({message:"Please provide valid post content."});
+
+    const newPost = new User({ userId: req.user.id, text });
+    await newPost.save();
+
+    res.status(201).json({message: "Post created successfully!"});
+})
 
 // Insert your post updation code here.
+app.put('/posts/:postId', authenticateJWT, async (req, res) => {
+    const postId = parseInt(req.params.postId);
+    const { text } = req.body;
+    
+    try {
+        await Post.updateOne({_id:postId}, {text:text});
+        
+        res.json({ message: 'Post updated successfully', updatedPost: postId });
+    } catch (error) {
+        res.status(500).json({message:"Internal Server Error"});
+    }  
+});
 
 // Insert your post deletion code here.
+app.delete('/posts/:postId', authenticateJWT, async (req, res) => {
+    const postId = parseInt(req.params.postId);
+    const { text } = req.body;
+    
+    try {
+        await Post.deleteOne({_id:postId});
+        
+        res.json({ message: 'Post deleted successfully', deletedPost: postId });
+    } catch (error) {
+        res.status(500).json({message:"Internal Server Error"});
+    }  
+});
 
 // Insert your user logout code here.
+app.get('/logout', (req, res) => {
+    req.session.destroy((err) => {
+      if (err) console.error(err);
+      res.redirect('/login');
+    });
+});
 
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
